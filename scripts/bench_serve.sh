@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Benchmark an SGLang endpoint and write raw results under:
+#   repo_root/logs/<dataset_name>/<timestamp>/bench_metrics.jsonl
+#
+# Usage:
+#   bash repo_root/scripts/bench_serve.sh <dataset_name> <num_prompts> <host> <port> [request_rate] [max_concurrency]
+#
+# Example:
+#   bash repo_root/scripts/bench_serve.sh sharegpt 500 34.80.233.120 30000 8 32
+#
+# Notes:
+# - DATASET_NAME is restricted to the dataset names SGLang supports by default:
+#   autobench, sharegpt, custom, openai, random, random-ids,
+#   generated-shared-prefix, mmmu, image, mooncake, longbench_v2
+# - This script targets the visible serving endpoint directly; it does NOT assume
+#   separate router / worker URLs.
+# - If you use a dataset that needs extra arguments in upstream SGLang
+#   (for example image/mooncake/custom/openai), you may need to extend this script.
+
+set -euo pipefail
+
+if [[ $# -lt 4 || $# -gt 6 ]]; then
+    echo "Usage: bash repo_root/scripts/bench_serve.sh <dataset_name> <num_prompts> <host> <port> [request_rate] [max_concurrency]"
+    exit 1
+fi
+
+DATASET_NAME="$1"
+NUM_PROMPTS="$2"
+HOST="$3"
+PORT="$4"
+REQUEST_RATE="${5:-8}"
+MAX_CONCURRENCY="${6:-32}"
+
+SUPPORTED_DATASETS=(
+  autobench
+  sharegpt
+  custom
+  openai
+  random
+  random-ids
+  generated-shared-prefix
+  mmmu
+  image
+  mooncake
+  longbench_v2
+)
+
+is_supported=false
+for ds in "${SUPPORTED_DATASETS[@]}"; do
+    if [[ "$DATASET_NAME" == "$ds" ]]; then
+        is_supported=true
+        break
+    fi
+done
+
+if [[ "$is_supported" != "true" ]]; then
+    echo "Error: unsupported DATASET_NAME '$DATASET_NAME'"
+    echo "Supported datasets: ${SUPPORTED_DATASETS[*]}"
+    exit 1
+fi
+
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+
+if [[ -n "${CONDA_PREFIX:-}" && -x "${CONDA_PREFIX}/bin/python" ]]; then
+    PYTHON="${CONDA_PREFIX}/bin/python"
+else
+    PYTHON="${PYTHON:-python3}"
+fi
+
+MODEL="${MODEL:-meta-llama/Meta-Llama-3-8B}"
+
+TIMESTAMP="$(date +"%Y%m%d-%H%M%S")"
+OUTDIR="$REPO_ROOT/logs/$DATASET_NAME/$TIMESTAMP"
+mkdir -p "$OUTDIR"
+
+OUTFILE="$OUTDIR/bench_metrics.jsonl"
+META_FILE="$OUTDIR/run_info.txt"
+
+{
+    echo "dataset_name=$DATASET_NAME"
+    echo "num_prompts=$NUM_PROMPTS"
+    echo "host=$HOST"
+    echo "port=$PORT"
+    echo "request_rate=$REQUEST_RATE"
+    echo "max_concurrency=$MAX_CONCURRENCY"
+    echo "model=$MODEL"
+    echo "timestamp=$TIMESTAMP"
+} > "$META_FILE"
+
+echo "=== Running SGLang benchmark ==="
+echo "Dataset:        $DATASET_NAME"
+echo "Prompts:        $NUM_PROMPTS"
+echo "Endpoint:       $HOST:$PORT"
+echo "Model:          $MODEL"
+echo "Request rate:   $REQUEST_RATE"
+echo "Concurrency:    $MAX_CONCURRENCY"
+echo "Output JSONL:   $OUTFILE"
+echo
+
+"$PYTHON" -m sglang.bench_serving \
+    --backend sglang \
+    --host "$HOST" \
+    --port "$PORT" \
+    --model "$MODEL" \
+    --dataset-name "$DATASET_NAME" \
+    --num-prompts "$NUM_PROMPTS" \
+    --max-concurrency "$MAX_CONCURRENCY" \
+    --request-rate "$REQUEST_RATE" \
+    --flush-cache \
+    --output-details \
+    --disable-stream \
+    --output-file "$OUTFILE"
+
+echo
+echo "=== Benchmark completed ==="
+echo "Raw benchmark output: $OUTFILE"
+echo "To summarize:"
+echo "  bash $REPO_ROOT/scripts/analyze_metrics.sh $OUTFILE"
