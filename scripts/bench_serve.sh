@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # Benchmark an SGLang endpoint and write raw results under:
 #   repo_root/logs/<dataset_name>/<timestamp>/bench_metrics.jsonl
 #
@@ -12,12 +14,9 @@
 # - DATASET_NAME is restricted to the dataset names SGLang supports by default:
 #   autobench, sharegpt, custom, openai, random, random-ids,
 #   generated-shared-prefix, mmmu, image, mooncake, longbench_v2
-# - This script targets the visible serving endpoint directly; it does NOT assume
-#   separate router / worker URLs.
-# - If you use a dataset that needs extra arguments in upstream SGLang
-#   (for example image/mooncake/custom/openai), you may need to extend this script.
-
-set -euo pipefail
+# - This script targets the visible serving endpoint directly.
+# - To force output into an existing directory (used by the wrapper script),
+#   set OUTDIR before invoking this script.
 
 if [[ $# -lt 4 || $# -gt 6 ]]; then
     echo "Usage: bash repo_root/scripts/bench_serve.sh <dataset_name> <num_prompts> <host> <port> [request_rate] [max_concurrency]"
@@ -69,12 +68,18 @@ fi
 
 MODEL="${MODEL:-meta-llama/Meta-Llama-3-8B}"
 
-TIMESTAMP="$(date +"%Y%m%d-%H%M%S")"
-OUTDIR="$REPO_ROOT/logs/$DATASET_NAME/$TIMESTAMP"
+TIMESTAMP="${TIMESTAMP:-$(date +"%Y%m%d-%H%M%S")}"
+OUTDIR="${OUTDIR:-$REPO_ROOT/logs/$DATASET_NAME/$TIMESTAMP}"
 mkdir -p "$OUTDIR"
 
 OUTFILE="$OUTDIR/bench_metrics.jsonl"
 META_FILE="$OUTDIR/run_info.txt"
+
+BENCH_START_EPOCH="$(python3 - <<'PY'
+import time
+print(f"{time.time():.6f}")
+PY
+)"
 
 {
     echo "dataset_name=$DATASET_NAME"
@@ -85,6 +90,8 @@ META_FILE="$OUTDIR/run_info.txt"
     echo "max_concurrency=$MAX_CONCURRENCY"
     echo "model=$MODEL"
     echo "timestamp=$TIMESTAMP"
+    echo "outdir=$OUTDIR"
+    echo "bench_start_epoch=$BENCH_START_EPOCH"
 } > "$META_FILE"
 
 echo "=== Running SGLang benchmark ==="
@@ -97,22 +104,17 @@ echo "Concurrency:    $MAX_CONCURRENCY"
 echo "Output JSONL:   $OUTFILE"
 echo
 
-"$PYTHON" -m sglang.bench_serving \
-    --backend sglang \
-    --host "$HOST" \
-    --port "$PORT" \
-    --model "$MODEL" \
-    --dataset-name "$DATASET_NAME" \
-    --num-prompts "$NUM_PROMPTS" \
-    --max-concurrency "$MAX_CONCURRENCY" \
-    --request-rate "$REQUEST_RATE" \
-    --flush-cache \
-    --output-details \
-    --disable-stream \
-    --output-file "$OUTFILE"
+"$PYTHON" -m sglang.bench_serving     --backend sglang     --host "$HOST"     --port "$PORT"     --model "$MODEL"     --dataset-name "$DATASET_NAME"     --num-prompts "$NUM_PROMPTS"     --max-concurrency "$MAX_CONCURRENCY"     --request-rate "$REQUEST_RATE"     --flush-cache     --output-details     --disable-stream     --output-file "$OUTFILE"
+
+BENCH_END_EPOCH="$(python3 - <<'PY'
+import time
+print(f"{time.time():.6f}")
+PY
+)"
+
+echo "bench_end_epoch=$BENCH_END_EPOCH" >> "$META_FILE"
 
 echo
 echo "=== Benchmark completed ==="
 echo "Raw benchmark output: $OUTFILE"
-echo "To summarize:"
-echo "  bash $REPO_ROOT/scripts/analyze_metrics.sh $OUTFILE"
+echo "Run info:            $META_FILE"
