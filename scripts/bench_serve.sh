@@ -66,10 +66,10 @@ else
     PYTHON="${PYTHON:-python3}"
 fi
 
-MODEL="${MODEL:-meta-llama/Meta-Llama-3-8B}"
+MODEL="${MODEL:-google/gemma-2-2b-it}"
 
 TIMESTAMP="${TIMESTAMP:-$(date +"%Y%m%d-%H%M%S")}"
-OUTDIR="${OUTDIR:-$REPO_ROOT/logs/$DATASET_NAME/$TIMESTAMP}"
+OUTDIR="${OUTDIR:-logs/$DATASET_NAME/$TIMESTAMP}"
 mkdir -p "$OUTDIR"
 
 OUTFILE="$OUTDIR/bench_metrics.jsonl"
@@ -104,7 +104,7 @@ echo "Concurrency:    $MAX_CONCURRENCY"
 echo "Output JSONL:   $OUTFILE"
 echo
 
-"$PYTHON" -m sglang.bench_serving     --backend sglang     --host "$HOST"     --port "$PORT"     --model "$MODEL"     --dataset-name "$DATASET_NAME"     --num-prompts "$NUM_PROMPTS"     --max-concurrency "$MAX_CONCURRENCY"     --request-rate "$REQUEST_RATE"     --flush-cache     --output-details     --disable-stream     --output-file "$OUTFILE"
+"$PYTHON" -m sglang.bench_serving     --backend sglang     --host "$HOST"     --port "$PORT"     --model "$MODEL"     --dataset-name "$DATASET_NAME"     --num-prompts "$NUM_PROMPTS"   --request-rate "$REQUEST_RATE"    --disable-stream     --output-file "$OUTFILE"
 
 BENCH_END_EPOCH="$(python3 - <<'PY'
 import time

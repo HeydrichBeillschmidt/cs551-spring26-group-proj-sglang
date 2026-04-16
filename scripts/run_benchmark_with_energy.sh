@@ -26,7 +26,7 @@ IDLE_SECONDS="${9:-10}"
 
 REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 TIMESTAMP="$(date +"%Y%m%d-%H%M%S")"
-OUTDIR="$REPO_ROOT/logs/$DATASET_NAME/$TIMESTAMP"
+OUTDIR="logs/$DATASET_NAME/$TIMESTAMP"
 mkdir -p "$OUTDIR"
 
 DCGM_RAW="$OUTDIR/dcgm_metrics.csv"
@@ -58,24 +58,24 @@ echo "Output directory:  $OUTDIR"
 echo
 
 echo "Starting DCGM sampler..."
-bash "$REPO_ROOT/scripts/collect_dcgm_metrics.sh" "$DCGM_URL" "$DCGM_RAW" "$DCGM_INTERVAL" &
+bash "collect_dcgm_metrics.sh" "$DCGM_URL" "$DCGM_RAW" "$DCGM_INTERVAL" &
 DCGM_PID=$!
 
 echo "Collecting idle baseline for ${IDLE_SECONDS}s..."
 sleep "$IDLE_SECONDS"
 
 echo "Running serving benchmark..."
-OUTDIR="$OUTDIR" TIMESTAMP="$TIMESTAMP" bash "$REPO_ROOT/scripts/bench_serve.sh"     "$DATASET_NAME" "$NUM_PROMPTS" "$HOST" "$PORT" "$REQUEST_RATE" "$MAX_CONCURRENCY"
+OUTDIR="$OUTDIR" TIMESTAMP="$TIMESTAMP" bash "bench_serve.sh"     "$DATASET_NAME" "$NUM_PROMPTS" "$HOST" "$PORT" "$REQUEST_RATE" "$MAX_CONCURRENCY"
 
 echo "Stopping DCGM sampler..."
 cleanup
 unset DCGM_PID
 
 echo "Summarizing serving metrics..."
-bash "$REPO_ROOT/scripts/analyze_metrics.sh" "$BENCH_RAW"
+bash "analyze_metrics.sh" "$BENCH_RAW"
 
 echo "Summarizing DCGM metrics..."
-python3 "$REPO_ROOT/scripts/parse_dcgm_metrics.py" "$DCGM_RAW" "$RUN_INFO" "$BENCH_SUMMARY" "$DCGM_SUMMARY"
+python3 "parse_dcgm_metrics.py" "$DCGM_RAW" "$RUN_INFO" "$BENCH_SUMMARY" "$DCGM_SUMMARY"
 
 echo
 echo "=== All done ==="
