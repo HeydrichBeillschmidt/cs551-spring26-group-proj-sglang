@@ -1,0 +1,11 @@
+dataset_name=random-ids
+num_prompts=4000
+host=35.221.137.139
+port=30000
+request_rate=32
+max_concurrency=32
+model=google/gemma-2-2b-it
+timestamp=20260419-195709
+outdir=/home/whomerde/logs/random-ids/20260419-195709
+bench_start_epoch=1776628689.426830
+bench_end_epoch=1776634167.374609
