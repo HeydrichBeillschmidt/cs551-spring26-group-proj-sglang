@@ -7,24 +7,17 @@ PLOT_DIR = os.path.join(REPO_ROOT, "plots")
 os.makedirs(PLOT_DIR, exist_ok=True)
 
 # -----------------------------
-# Dataset mapping
+# Data locations
 # -----------------------------
 AWS_BASE = os.path.join(REPO_ROOT, "aws-daeun")
-GCP_BASES = [
-    os.path.join(REPO_ROOT, "gcp-roohee"),
-    os.path.join(REPO_ROOT, "gcp-alina"),
+GCP_BASE = os.path.join(REPO_ROOT, "gcp-final")
+
+DATASETS = [
+    "sharegpt",
+    "random",
+    "random-ids",
+    "generated-shared-prefix",
 ]
-
-DATASET_MAP = {
-    "sharegpt": "sharegpt",
-    "random": "random",
-    "random-ids": "random-ids",
-    "generated-shared-prefix": "generated-shared-prefix",
-}
-
-GCP_SPECIAL_NAMES = {
-    "generated-shared-prefix": "generated-shared-prefix - 4096"
-}
 
 # -----------------------------
 # Metrics to plot
@@ -37,46 +30,34 @@ METRICS = {
 }
 
 # -----------------------------
-# Helper functions
+# Helpers
 # -----------------------------
 def read_metric(csv_path):
     data = {}
     if not os.path.exists(csv_path):
         return data
-    with open(csv_path, "r") as f:
+    with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            data[row["metric"]] = float(row["value"])
+            try:
+                data[row["metric"]] = float(row["value"])
+            except (ValueError, TypeError):
+                continue
     return data
-
-
-def find_gcp_path(dataset):
-    for base in GCP_BASES:
-        name = GCP_SPECIAL_NAMES.get(dataset, dataset)
-        path = os.path.join(base, name)
-        if os.path.exists(path):
-            return path
-    return None
 
 
 def collect_data():
     results = {metric: {"AWS": [], "GCP": []} for metric in METRICS}
 
-    datasets = list(DATASET_MAP.keys())
+    for dataset in DATASETS:
+        aws_path = os.path.join(AWS_BASE, dataset)
+        gcp_path = os.path.join(GCP_BASE, dataset)
 
-    for dataset in datasets:
-        # AWS
-        aws_path = os.path.join(AWS_BASE, DATASET_MAP[dataset])
         aws_perf = read_metric(os.path.join(aws_path, "bench_metrics.csv"))
         aws_energy = read_metric(os.path.join(aws_path, "dcgm_summary.csv"))
 
-        # GCP
-        gcp_base = find_gcp_path(dataset)
-        if gcp_base:
-            gcp_perf = read_metric(os.path.join(gcp_base, "bench_metrics.csv"))
-            gcp_energy = read_metric(os.path.join(gcp_base, "dcgm_summary.csv"))
-        else:
-            gcp_perf, gcp_energy = {}, {}
+        gcp_perf = read_metric(os.path.join(gcp_path, "bench_metrics.csv"))
+        gcp_energy = read_metric(os.path.join(gcp_path, "dcgm_summary.csv"))
 
         for metric in METRICS:
             if metric in aws_perf:
@@ -93,27 +74,26 @@ def collect_data():
             else:
                 results[metric]["GCP"].append(0)
 
-    return datasets, results
+    return results
 
 
 # -----------------------------
 # Plotting
 # -----------------------------
 def plot_all():
-    datasets, results = collect_data()
-    x = range(len(datasets))
+    results = collect_data()
+    x = range(len(DATASETS))
+    width = 0.35
 
     for metric, title in METRICS.items():
         aws_vals = results[metric]["AWS"]
         gcp_vals = results[metric]["GCP"]
 
-        width = 0.35
-
         plt.figure(figsize=(8, 5))
         plt.bar([i - width / 2 for i in x], aws_vals, width, label="AWS")
         plt.bar([i + width / 2 for i in x], gcp_vals, width, label="GCP")
 
-        plt.xticks(x, datasets, rotation=20)
+        plt.xticks(list(x), DATASETS, rotation=20)
         plt.ylabel(title)
         plt.title(title)
         plt.legend()
