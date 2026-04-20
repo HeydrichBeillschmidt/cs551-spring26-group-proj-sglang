@@ -1,0 +1,11 @@
+dataset_name=generated-shared-prefix
+num_prompts=4000
+host=34.150.0.25
+port=30000
+request_rate=32
+max_concurrency=32
+model=google/gemma-2-2b-it
+timestamp=20260419-053623
+outdir=logs/generated-shared-prefix/20260419-053623
+bench_start_epoch=1776577043.646312
+bench_end_epoch=1776583580.940396

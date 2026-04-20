@@ -1,0 +1,11 @@
+dataset_name=random
+num_prompts=4000
+host=34.150.0.25
+port=30000
+request_rate=32
+max_concurrency=32
+model=google/gemma-2-2b-it
+timestamp=20260418-223805
+outdir=logs/random/20260418-223805
+bench_start_epoch=1776551945.452296
+bench_end_epoch=1776556848.875517
